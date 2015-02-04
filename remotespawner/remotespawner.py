@@ -92,8 +92,8 @@ class RemoteSpawner(Spawner):
         #self.proc = Popen(cmd, env=env, \
         #    preexec_fn=self.make_preexec_fn(self.user.name),
         #                 )
-        for k, v in env.items():
-            cmd.insert(0, 'export %s="%s";' % (k, v))
+        for item in env.items():
+            cmd.insert(0, 'export %s="%s";' % item)
         self.log.info("Spawning %s", ' '.join(cmd))
         self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
         #self.log.debug("Error %s", ''.join(stderr.readlines()))
