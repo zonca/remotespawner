@@ -95,7 +95,8 @@ class RemoteSpawner(Spawner):
         for k, v in env.items():
             cmd.insert(0, 'export %s="%s";' % (k, v))
         self.log.info("Spawning %s", ' '.join(cmd))
-        self.pid, stdin, stdout, stderr = execute(self.channel, ''.join(cmd)) 
+        self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
+        #self.log.debug("Error %s", ''.join(stderr.readlines()))
 
     @gen.coroutine
     def poll(self):
