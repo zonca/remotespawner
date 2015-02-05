@@ -10,7 +10,7 @@ from tornado import gen
 
 from jupyterhub.spawner import Spawner
 from IPython.utils.traitlets import (
-    Instance, Integer,
+    Instance, Integer, Unicode
 )
 
 from jupyterhub.utils import random_port
@@ -43,6 +43,11 @@ class RemoteSpawner(Spawner):
     KILL_TIMEOUT = Integer(5, config=True, \
         help="Seconds to wait for process to halt after SIGKILL before giving up"
                           )
+
+    server_url = Unicode("localhost", config=True, \
+        help="url of the remote server")
+    server_user = Unicode("jupyterhub", config=True, \
+        help="user with passwordless SSH access to the server")
 
     channel = Instance(paramiko.client.SSHClient)
     pid = Integer(0)
@@ -92,13 +97,13 @@ class RemoteSpawner(Spawner):
         self.log.debug("Env: %s", str(env))
         self.channel = paramiko.SSHClient()
         self.channel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.channel.connect("docker3", username="zonca")
+        self.channel.connect(self.server_url, username=self.server_user)
         #self.proc = Popen(cmd, env=env, \
         #    preexec_fn=self.make_preexec_fn(self.user.name),
         #                 )
+        self.log.info("Spawning %s", ' '.join(cmd))
         for item in env.items():
             cmd.insert(0, 'export %s="%s";' % item)
-        self.log.info("Spawning %s", ' '.join(cmd))
         self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
         self.log.info("Setting up SSH tunnel")
         setup_ssh_tunnel(self.user.server.port, self.server_user, self.server_url)

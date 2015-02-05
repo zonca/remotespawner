@@ -185,6 +185,8 @@ c.Spawner.debug = True
 # takes longer than this. start should return when the server process is started
 # and its location is known.
 # c.LocalProcessSpawner.start_timeout = 60
+c.RemoteSpawner.server_url = "docker3"
+c.RemoteSpawner.server_user = "zonca"
 
 # Whitelist of environment variables for the subprocess to inherit
 # c.LocalProcessSpawner.env_keep = ['PATH', 'PYTHONPATH', 'CONDA_ROOT', 'CONDA_DEFAULT_ENV', 'VIRTUAL_ENV', 'LANG', 'LC_ALL']
