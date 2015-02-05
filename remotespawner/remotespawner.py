@@ -17,6 +17,10 @@ from jupyterhub.utils import random_port
 from jupyterhub.spawner import set_user_setuid
 
 import paramiko
+from zmq.ssh import tunnel
+
+def setup_ssh_tunnel(port, user, server):
+    tunnel.openssh_tunnel(port, port, "%s@%s" % (user, server))
 
 def execute(channel, command):
     """Execute command and get remote PID
@@ -96,6 +100,8 @@ class RemoteSpawner(Spawner):
             cmd.insert(0, 'export %s="%s";' % item)
         self.log.info("Spawning %s", ' '.join(cmd))
         self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
+        self.log.info("Setting up SSH tunnel")
+        setup_ssh_tunnel(self.user.server.port, self.server_user, self.server_url)
         #self.log.debug("Error %s", ''.join(stderr.readlines()))
 
     @gen.coroutine
