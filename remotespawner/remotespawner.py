@@ -144,13 +144,13 @@ class RemoteSpawner(Spawner):
         """simple implementation of signal
 
         we can use it when we are using setuid (we are root)"""
-        try:
-            os.kill(self.pid, sig)
-        except OSError as e:
-            if e.errno == errno.ESRCH:
-                return False # process is gone
-            else:
-                raise
+        #try:
+        #    os.kill(self.pid, sig)
+        #except OSError as e:
+        #    if e.errno == errno.ESRCH:
+        #        return False # process is gone
+        #    else:
+        #        raise
         return True # process exists
 
     @gen.coroutine
@@ -159,31 +159,32 @@ class RemoteSpawner(Spawner):
 
         if `now`, skip waiting for clean shutdown
         """
-        if not now:
-            status = yield self.poll()
-            if status is not None:
-                return
-            self.log.debug("Interrupting %i", self.pid)
-            yield self._signal(signal.SIGINT)
-            yield self.wait_for_death(self.INTERRUPT_TIMEOUT)
+        return
+        #if not now:
+        #    status = yield self.poll()
+        #    if status is not None:
+        #        return
+        #    self.log.debug("Interrupting %i", self.pid)
+        #    yield self._signal(signal.SIGINT)
+        #    yield self.wait_for_death(self.INTERRUPT_TIMEOUT)
 
-        # clean shutdown failed, use TERM
-        status = yield self.poll()
-        if status is not None:
-            return
-        self.log.debug("Terminating %i", self.pid)
-        yield self._signal(signal.SIGTERM)
-        yield self.wait_for_death(self.TERM_TIMEOUT)
+        ## clean shutdown failed, use TERM
+        #status = yield self.poll()
+        #if status is not None:
+        #    return
+        #self.log.debug("Terminating %i", self.pid)
+        #yield self._signal(signal.SIGTERM)
+        #yield self.wait_for_death(self.TERM_TIMEOUT)
 
-        # TERM failed, use KILL
-        status = yield self.poll()
-        if status is not None:
-            return
-        self.log.debug("Killing %i", self.pid)
-        yield self._signal(signal.SIGKILL)
-        yield self.wait_for_death(self.KILL_TIMEOUT)
+        ## TERM failed, use KILL
+        #status = yield self.poll()
+        #if status is not None:
+        #    return
+        #self.log.debug("Killing %i", self.pid)
+        #yield self._signal(signal.SIGKILL)
+        #yield self.wait_for_death(self.KILL_TIMEOUT)
 
-        status = yield self.poll()
-        if status is None:
-            # it all failed, zombie process
-            self.log.warn("Process %i never died", self.pid)
+        #status = yield self.poll()
+        #if status is None:
+        #    # it all failed, zombie process
+        #    self.log.warn("Process %i never died", self.pid)
