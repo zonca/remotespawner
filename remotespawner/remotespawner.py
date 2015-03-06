@@ -23,12 +23,11 @@ def setup_ssh_tunnel(port, user, server):
     tunnel.openssh_tunnel(port, port, "%s@%s" % (user, server))
 
 def execute(channel, command):
-    """Execute command and get remote PID
+    """Execute command and get remote PID"""
 
-    from http://stackoverflow.com/questions/9872872/get-pid-from-paramiko"""
-    command = 'echo $$; exec ' + command
+    command = command + '& pid=$!; echo PID=$pid'
     stdin, stdout, stderr = channel.exec_command(command)
-    pid = int(stdout.readline())
+    pid = int(stdout.readline().replace("PID=", ""))
     return pid, stdin, stdout, stderr
 
 class RemoteSpawner(Spawner):
@@ -105,6 +104,7 @@ class RemoteSpawner(Spawner):
         for item in env.items():
             cmd.insert(0, 'export %s="%s";' % item)
         self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
+        self.log.info("Process PID is %d" % self.pid)
         self.log.info("Setting up SSH tunnel")
         setup_ssh_tunnel(self.user.server.port, self.server_user, self.server_url)
         #self.log.debug("Error %s", ''.join(stderr.readlines()))
