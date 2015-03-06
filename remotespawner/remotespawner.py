@@ -4,7 +4,7 @@ import errno
 import pwd
 import os
 import pipes
-from subprocess import Popen
+from subprocess import Popen, call
 
 from tornado import gen
 
@@ -17,10 +17,12 @@ from jupyterhub.utils import random_port
 from jupyterhub.spawner import set_user_setuid
 
 import paramiko
-from zmq.ssh import tunnel
 
 def setup_ssh_tunnel(port, user, server):
-    tunnel.openssh_tunnel(port, port, "%s@%s" % (user, server))
+    """Setup a local SSH port forwarding"""
+    #tunnel.openssh_tunnel(port, port, "%s@%s" % (user, server))
+    call(["ssh", "-N", "-f", "%s@%s" % (user, server),
+          "-L {port}:localhost:{port}".format(port=port)])
 
 def execute(channel, command):
     """Execute command and get remote PID"""
