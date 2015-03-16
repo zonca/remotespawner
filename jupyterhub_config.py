@@ -151,7 +151,7 @@ c.JupyterHub.spawner_class = 'remotespawner.RemoteSpawner'
 # respond. Callers of spawner.start will assume that startup has failed if it
 # takes longer than this. start should return when the server process is started
 # and its location is known.
-# c.Spawner.start_timeout = 60
+c.RemoteSpawner.http_timeout = 600
 
 # Whitelist of environment variables for the subprocess to inherit
 # c.Spawner.env_keep = ['PATH', 'PYTHONPATH', 'CONDA_ROOT', 'CONDA_DEFAULT_ENV', 'VIRTUAL_ENV', 'LANG', 'LC_ALL']
@@ -185,8 +185,9 @@ c.Spawner.debug = True
 # takes longer than this. start should return when the server process is started
 # and its location is known.
 # c.LocalProcessSpawner.start_timeout = 60
-c.RemoteSpawner.server_url = "docker3"
-c.RemoteSpawner.server_user = "zonca"
+#c.RemoteSpawner.server_url = "docker3"
+#c.RemoteSpawner.server_user = "zonca"
+c.RemoteSpawner.start_timeout = 1200
 
 # Whitelist of environment variables for the subprocess to inherit
 # c.LocalProcessSpawner.env_keep = ['PATH', 'PYTHONPATH', 'CONDA_ROOT', 'CONDA_DEFAULT_ENV', 'VIRTUAL_ENV', 'LANG', 'LC_ALL']

@@ -26,7 +26,7 @@ def setup_ssh_tunnel(port, user, server):
     call(["ssh", "-N", "-f", "%s@%s" % (user, server),
           "-L {port}:localhost:{port}".format(port=port)])
 
-def run_jupyterhub_singleuser(cmd):
+def run_jupyterhub_singleuser(cmd, port):
     serialpbs = Template('''
 #PBS -S /bin/bash
 #PBS -l nodes=1:ppn=1,walltime=$hours:00:00,pvmem=${mem}gb
@@ -37,12 +37,24 @@ def run_jupyterhub_singleuser(cmd):
 #PBS -o s_$id.log
 #PBS -j oe
 #PBS -V
+
+module load pycmb
+
+export PATH=/global/project/projectdirs/cmb/modules/carver/pycmb3/bin:$PATH
+
+which jupyterhub-singleuser
+
+# setup tunnel for notebook
+ssh -N -f -R $port:localhost:$port nebula.sdsc.edu
+# setup tunnel for API
+ssh -N -f -L 8081:localhost:8081 nebula.sdsc.edu
+
     ''')
     queue = "usplanck"
     mem = 20
     hours = 8
     id = "jup"
-    serialpbs = serialpbs.substitute(dict(queue = queue, mem = mem, hours=hours, id=id))
+    serialpbs = serialpbs.substitute(dict(queue = queue, mem = mem, hours=hours, id=id, port=port, PATH="$PATH"))
     serialpbs+='\n'
     serialpbs+='cd %s' % "notebooks"
     serialpbs+='\n'
@@ -63,13 +75,13 @@ def execute(channel, command):
 class RemoteSpawner(Spawner):
     """A Spawner that just uses Popen to start local processes."""
 
-    INTERRUPT_TIMEOUT = Integer(10, config=True, \
+    INTERRUPT_TIMEOUT = Integer(1200, config=True, \
         help="Seconds to wait for process to halt after SIGINT before proceeding to SIGTERM"
                                )
-    TERM_TIMEOUT = Integer(5, config=True, \
+    TERM_TIMEOUT = Integer(1200, config=True, \
         help="Seconds to wait for process to halt after SIGTERM before proceeding to SIGKILL"
                           )
-    KILL_TIMEOUT = Integer(5, config=True, \
+    KILL_TIMEOUT = Integer(1200, config=True, \
         help="Seconds to wait for process to halt after SIGKILL before giving up"
                           )
 
@@ -126,15 +138,15 @@ class RemoteSpawner(Spawner):
         self.log.debug("Env: %s", str(env))
         self.channel = paramiko.SSHClient()
         self.channel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.channel.connect(self.server_url, username=self.server_user)
+        #self.channel.connect(self.server_url, username=self.server_user)
         #self.proc = Popen(cmd, env=env, \
         #    preexec_fn=self.make_preexec_fn(self.user.name),
         #                 )
         self.log.info("Spawning %s", ' '.join(cmd))
-        for item in env.items():
-            cmd.insert(0, 'export %s="%s";' % item)
+        for k in ["JPY_API_TOKEN"]:
+            cmd.insert(0, 'export %s="%s";' % (k, env[k]))
         #self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
-        run_jupyterhub_singleuser(' '.join(cmd))
+        run_jupyterhub_singleuser(' '.join(cmd), port=self.user.server.port)
         self.log.info("Process PID is %d" % self.pid)
         #self.log.info("Setting up SSH tunnel")
         #setup_ssh_tunnel(self.user.server.port, self.server_user, self.server_url)
@@ -222,4 +234,4 @@ class RemoteSpawner(Spawner):
 
 if __name__ == "__main__":
 
-        run_jupyterhub_singleuser("ipython")
+        run_jupyterhub_singleuser("jupyterhub-singleuser", 3434)
