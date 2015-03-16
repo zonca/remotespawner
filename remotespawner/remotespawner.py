@@ -5,6 +5,8 @@ import pwd
 import os
 import pipes
 from subprocess import Popen, call
+import subprocess
+from string import Template
 
 from tornado import gen
 
@@ -23,6 +25,32 @@ def setup_ssh_tunnel(port, user, server):
     #tunnel.openssh_tunnel(port, port, "%s@%s" % (user, server))
     call(["ssh", "-N", "-f", "%s@%s" % (user, server),
           "-L {port}:localhost:{port}".format(port=port)])
+
+def run_jupyterhub_singleuser(cmd):
+    serialpbs = Template('''
+#PBS -S /bin/bash
+#PBS -l nodes=1:ppn=1,walltime=$hours:00:00,pvmem=${mem}gb
+#PBS -N $id
+#PBS -q $queue
+#PBS -A usplanck
+#PBS -r n
+#PBS -o s_$id.log
+#PBS -j oe
+#PBS -V
+    ''')
+    queue = "usplanck"
+    mem = 20
+    hours = 8
+    id = "jup"
+    serialpbs = serialpbs.substitute(dict(queue = queue, mem = mem, hours=hours, id=id))
+    serialpbs+='\n'
+    serialpbs+='cd %s' % "notebooks"
+    serialpbs+='\n'
+    serialpbs+=cmd
+    print('Submitting *****{\n%s\n}*****' % serialpbs)
+    popen = subprocess.Popen('ssh carver.nersc.gov /usr/syscom/opt/torque/default_sl5carver/bin/qsub',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    out = popen.communicate(serialpbs.encode())[0].strip()
+    return out
 
 def execute(channel, command):
     """Execute command and get remote PID"""
@@ -105,10 +133,11 @@ class RemoteSpawner(Spawner):
         self.log.info("Spawning %s", ' '.join(cmd))
         for item in env.items():
             cmd.insert(0, 'export %s="%s";' % item)
-        self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
+        #self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
+        run_jupyterhub_singleuser(' '.join(cmd))
         self.log.info("Process PID is %d" % self.pid)
-        self.log.info("Setting up SSH tunnel")
-        setup_ssh_tunnel(self.user.server.port, self.server_user, self.server_url)
+        #self.log.info("Setting up SSH tunnel")
+        #setup_ssh_tunnel(self.user.server.port, self.server_user, self.server_url)
         #self.log.debug("Error %s", ''.join(stderr.readlines()))
 
     @gen.coroutine
@@ -190,3 +219,7 @@ class RemoteSpawner(Spawner):
         #if status is None:
         #    # it all failed, zombie process
         #    self.log.warn("Process %i never died", self.pid)
+
+if __name__ == "__main__":
+
+        run_jupyterhub_singleuser("ipython")
