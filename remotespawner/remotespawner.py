@@ -32,7 +32,7 @@ def run_jupyterhub_singleuser(cmd, port):
 #PBS -l nodes=1:ppn=1,walltime=$hours:00:00,pvmem=${mem}gb
 #PBS -N $id
 #PBS -q $queue
-#PBS -A usplanck
+#####PBS -A usplanck
 #PBS -r n
 #PBS -o s_$id.log
 #PBS -j oe
@@ -51,6 +51,7 @@ ssh -N -f -L 8081:localhost:8081 nebula.sdsc.edu
 
     ''')
     queue = "usplanck"
+    queue = "normal"
     mem = 20
     hours = 8
     id = "jup"
@@ -60,7 +61,8 @@ ssh -N -f -L 8081:localhost:8081 nebula.sdsc.edu
     serialpbs+='\n'
     serialpbs+=cmd
     print('Submitting *****{\n%s\n}*****' % serialpbs)
-    popen = subprocess.Popen('ssh carver.nersc.gov /usr/syscom/opt/torque/default_sl5carver/bin/qsub',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    # popen = subprocess.Popen('ssh carver.nersc.gov /usr/syscom/opt/torque/default_sl5carver/bin/qsub',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+    popen = subprocess.Popen('ssh gordon.sdsc.edu qsub',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
     out = popen.communicate(serialpbs.encode())[0].strip()
     return out
 
