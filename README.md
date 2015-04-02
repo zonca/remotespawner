@@ -12,3 +12,5 @@ And needs the 8081 port of the local machine that runs `jupyterhub` to be forwar
 the remote server.
 
 Currently in development, it sort of works.
+
+See the `qsub` branch for a proof-of-concept integration with Torque.
