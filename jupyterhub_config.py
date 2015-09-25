@@ -45,7 +45,8 @@ c.JupyterHub.log_level = logging.DEBUG
 # c.JupyterHub.authenticator_class = <class 'jupyterhub.auth.PAMAuthenticator'>
 
 # The port for this process
-# c.JupyterHub.hub_port = 8081
+c.JupyterHub.hub_port = 9081
+c.JupyterHub.hub_ip = "67.58.50.67"
 
 # The port for the proxy API handlers
 # c.JupyterHub.proxy_api_port = 0
