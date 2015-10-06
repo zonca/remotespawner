@@ -80,10 +80,16 @@ ssh -o "StrictHostKeyChecking no" -i ~/.ssh/tunnelbot_rsa -N -f -R $port:localho
     serialpbs+=cmd
     print('Submitting *****{\n%s\n}*****' % serialpbs)
     # popen = subprocess.Popen('ssh carver.nersc.gov /usr/syscom/opt/torque/default_sl5carver/bin/qsub',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-    # popen = subprocess.Popen('gsissh comet.sdsc.edu sbatch',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-    popen = subprocess.Popen('ssh comet.sdsc.edu sbatch',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE,
-    preexec_fn=set_user_setuid(name)
-    )
+    comet_cert_name = "/home/{}/cilogon_comet.crt".format(name)
+    #with open(comet_cert_name, "w") as f:
+    #with os.fdopen(os.open(comet_cert_name, os.O_WRONLY | os.O_CREAT, 0o0600), 'w') as f:
+    #    for input_file in ["/home/{}/cilogon.crt".format(name), "/srv/remotespawner-jupyterhub/cred/oauth-privkey.pem"]:
+    #        with open(input_file) as input_f:
+    #            f.write(input_f.read())
+    popen = subprocess.Popen('gsissh comet.sdsc.edu sbatch',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE, env=dict(X509_USER_PROXY="/tmp/cert.{}".format(name)))
+    # popen = subprocess.Popen('ssh comet.sdsc.edu sbatch',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE,
+    # preexec_fn=set_user_setuid(name)
+    
     out = popen.communicate(serialpbs.encode())[0].strip()
     return out
 
