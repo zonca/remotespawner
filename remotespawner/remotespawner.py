@@ -91,6 +91,10 @@ ssh -o "StrictHostKeyChecking no" -i ~/.ssh/tunnelbot_rsa -N -f -R $port:localho
     # preexec_fn=set_user_setuid(name)
     
     out = popen.communicate(serialpbs.encode())[0].strip()
+
+    self.user.username = subprocess.check_output(["gsissh", "comet.sdsc.edu", "whoami"]).strip()
+
+    self.log.debug("Username: %s", str(self.user.username))
     return out
 
 # def execute(channel, command):
