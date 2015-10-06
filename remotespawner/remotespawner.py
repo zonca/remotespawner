@@ -151,7 +151,6 @@ class RemoteSpawner(Spawner):
     def user_env(self, env):
         """get user environment"""
         env['USER'] = self.user.name
-        env['HOME'] = pwd.getpwnam(self.user.name).pw_dir
         return env
 
     def _env_default(self):
