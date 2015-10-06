@@ -188,33 +188,18 @@ class RemoteSpawner(Spawner):
 
     @gen.coroutine
     def poll(self):
-        """Poll the process"""
-        # for now just assume it is ok
+        """Check if the single-user process is running
+
+        return None if it is, an exit status (0 if unknown) if it is not.
+        """
+        jobs = subprocess.check_output(["gsissh", "comet.sdsc.edu", "squeue", "-u", self.user.username]).decode("utf-8").split("\n")
+        job = [j for j in jobs if "jupyter" in j and ("R" in j or "PD" in j)]
+        if len(job) > 1:
+            self.log.error("More than one jupyter job, picking the first")
+        elif len(job) == 0:
+            self.log.debug("No jupyterhub job found in running state")
+            return 0
         return None
-        ### if we started the process, poll with Popen
-        ##if self.proc is not None:
-        ##    status = self.proc.poll()
-        ##    if status is not None:
-        ##        # clear state if the process is done
-        ##        self.clear_state()
-        ##    return status
-
-        ### if we resumed from stored state,
-        ### we don't have the Popen handle anymore, so rely on self.pid
-
-        ##if not self.pid:
-        ##    # no pid, not running
-        ##    self.clear_state()
-        ##    return 0
-
-        ### send signal 0 to check if PID exists
-        ### this doesn't work on Windows, but that's okay because we don't support Windows.
-        ##alive = yield self._signal(0)
-        ##if not alive:
-        ##    self.clear_state()
-        ##    return 0
-        ##else:
-        ##    return None
 
     @gen.coroutine
     def _signal(self, sig):
