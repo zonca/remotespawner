@@ -62,7 +62,8 @@ def run_jupyterhub_singleuser(cmd, port, name):
 which jupyterhub-singleuser
 
 # setup tunnel for notebook
-ssh -N -f -R $port:localhost:$port jupyter.calit2.optiputer.net
+
+ssh -o "StrictHostKeyChecking no" -i ~/.ssh/tunnelbot_rsa -N -f -R $port:localhost:$port tunnelbot@jupyter.calit2.optiputer.net
 # setup tunnel for API
 # ssh -N -f -L 9081:localhost:9081 jupyter.calit2.optiputer.net
 
