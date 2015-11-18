@@ -32,7 +32,7 @@ module load python scipy
 mkdir -p ~/notebooks
 
 # create tunnelbot private SSH key
-TUNNELBOT_RSA_PATH=/tmp/tunnelbot_rsa.{user}
+TUNNELBOT_RSA_PATH=(mktemp)
 echo "{tunnelbot_rsa}" > $TUNNELBOT_RSA_PATH 
 chmod 600 $TUNNELBOT_RSA_PATH
 
@@ -111,9 +111,6 @@ class RemoteSpawner(Spawner):
         """Start the process"""
         self.user.server.port = random_port()
 
-        self.user.username = subprocess.check_output(["gsissh", "comet.sdsc.edu", "whoami"], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(self.user.name))).strip()
-
-        self.log.debug("Username: %s", str(self.user.username))
         cmd = []
         env = self.env.copy()
 
@@ -121,12 +118,7 @@ class RemoteSpawner(Spawner):
         cmd.extend(self.get_args())
 
         self.log.debug("Env: %s", str(env))
-        # self.channel = paramiko.SSHClient()
-        # self.channel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        #self.channel.connect(self.server_url, username=self.server_user)
-        #self.proc = Popen(cmd, env=env, \
-        #    preexec_fn=self.make_preexec_fn(self.user.name),
-        #                 )
+
         self.log.info("Spawning %s", ' '.join(cmd))
         for k in ["JPY_API_TOKEN"]:
             cmd.insert(0, 'export %s="%s";' % (k, env[k]))
@@ -140,7 +132,7 @@ class RemoteSpawner(Spawner):
         with open(os.environ["TUNNELBOT_RSA_KEY_PATH"]) as rsa_file:
             tunnelbot_rsa = rsa_file.read()
 
-        serialpbs = serialpbs.format(queue = queue, mem = mem, hours=hours, id=id, port=self.user.server.port, PATH="$PATH", user=self.user.username, tunnelbot_rsa=tunnelbot_rsa)
+        serialpbs = serialpbs.format(queue = queue, mem = mem, hours=hours, id=id, port=self.user.server.port, PATH="$PATH", tunnelbot_rsa=tunnelbot_rsa)
         serialpbs+='\n'
         serialpbs+='cd %s' % "notebooks"
         serialpbs+='\n'
@@ -151,7 +143,7 @@ class RemoteSpawner(Spawner):
         out = popen.communicate(serialpbs.encode())[0].strip()
 
     def get_jobs(self, user):
-        jobs = subprocess.check_output(["gsissh", "comet.sdsc.edu", "squeue", "-u", user.username], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(user.name))).decode("utf-8").split("\n")
+        jobs = subprocess.check_output(["gsissh", "comet.sdsc.edu", "'squeue -u $USER'"], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(user.name))).decode("utf-8").split("\n")
         self.log.info("squeue results: %s", jobs)
         running_jobs = [j for j in jobs if "SUjupy" in j and ("R" in j or "PD" in j)]
         return running_jobs
@@ -162,13 +154,12 @@ class RemoteSpawner(Spawner):
 
         return None if it is, an exit status (0 if unknown) if it is not.
         """
-        if hasattr(self.user, "username"): # make sure the "start" coroutine has been executed
-            jobs = self.get_jobs(self.user)
-            if len(jobs) > 1:
-                self.log.error("More than one jupyter job")
-            elif len(jobs) == 0:
-                self.log.info("No jupyterhub job found in running state")
-                return 0
+        jobs = self.get_jobs(self.user)
+        if len(jobs) > 1:
+            self.log.error("More than one jupyter job")
+        elif len(jobs) == 0:
+            self.log.info("No jupyterhub job found in running state")
+            return 0
         return None
 
     @gen.coroutine
@@ -188,17 +179,16 @@ class RemoteSpawner(Spawner):
         status = yield self.poll()
         if status is not None:
             return
-        if hasattr(self.user, "username"): # make sure the "start" coroutine has been executed
-            jobs = self.get_jobs(self.user)
-            for job in jobs:
-                job_number = job.strip().split()[0]
-                subprocess.call(["gsissh", "comet.sdsc.edu", "scancel", "-u", self.user.username, job_number], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(self.user.name)))
-            yield self.wait_for_death(self.KILL_TIMEOUT)
+        jobs = self.get_jobs(self.user)
+        for job in jobs:
+            job_number = job.strip().split()[0]
+            subprocess.call(["gsissh", "comet.sdsc.edu", "scancel", job_number], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(self.user.name)))
+        yield self.wait_for_death(self.KILL_TIMEOUT)
 
         status = yield self.poll()
         if status is None:
             # it all failed, zombie process
-            self.log.warn("Job for user %s username %s never died", self.user.name, self.user.username)
+            self.log.warn("Job for user %s never died", self.user.name)
 
 if __name__ == "__main__":
 
