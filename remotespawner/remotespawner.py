@@ -4,7 +4,6 @@ import errno
 import pwd
 import os
 import pipes
-from subprocess import Popen, call
 import subprocess
 from string import Template
 
@@ -18,104 +17,54 @@ from IPython.utils.traitlets import (
 from jupyterhub.utils import random_port
 from jupyterhub.spawner import set_user_setuid
 
-import paramiko
-
-def setup_ssh_tunnel(port, user, server):
-    """Setup a local SSH port forwarding"""
-    #tunnel.openssh_tunnel(port, port, "%s@%s" % (user, server))
-    call(["ssh", "-N", "-f", "%s@%s" % (user, server),
-          "-L {port}:localhost:{port}".format(port=port)])
-
-def run_jupyterhub_singleuser(cmd, port, name):
-# GORDON
-#     serialpbs = Template('''
-# #PBS -S /bin/bash
-# #PBS -l nodes=1:ppn=1,walltime=00:$hours:00,pvmem=${mem}gb
-# #PBS -N $id
-# #PBS -q $queue
-# #####PBS -A usplanck
-# #PBS -r n
-# #PBS -o s_$id.log
-# #PBS -j oe
-# #PBS -V
-# 
-# module load pycmb
-# 
-# which jupyterhub-singleuser
-# 
-# # setup tunnel for notebook
-# ssh -N -f -R $port:localhost:$port jupyter.ucsd.edu
-# # setup tunnel for API
-# #ssh -N -f -L 8081:localhost:8081 jupyter.ucsd.edu
-# 
-#     ''')
-# COMET
-    serialpbs = Template('''#!/bin/bash
-#SBATCH --job-name="jupyterhub"
+job_template = {"comet":('''#!/bin/bash
+#SBATCH --job-name="SUjupyter"
 #SBATCH --output="jupyterhub.%j.%N.out"
 #SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL
-#SBATCH -t 00:$hours:00
+#SBATCH -t {hours}:00:00
+
+module load python scipy
+
+# create notebooks folder if not already there
+mkdir -p ~/notebooks
+
+# create tunnelbot private SSH key
+TUNNELBOT_RSA_PATH=/tmp/tunnelbot_rsa.{user}
+echo "{tunnelbot_rsa}" > $TUNNELBOT_RSA_PATH 
+chmod 600 $TUNNELBOT_RSA_PATH
+
+# create tunnel from Comet to Jupyterhub
+ssh -o "StrictHostKeyChecking no" -i $TUNNELBOT_RSA_PATH -N -f -R {port}:localhost:{port} tunnelbot@67.58.50.67
+
+    '''), "gordon":    Template('''
+#PBS -S /bin/bash
+#PBS -l nodes=1:ppn=1,walltime=00:$hours:00,pvmem=${mem}gb
+#PBS -N $id
+#PBS -q $queue
+#####PBS -A usplanck
+#PBS -r n
+#PBS -o s_$id.log
+#PBS -j oe
+#PBS -V
+
+module load pycmb
 
 which jupyterhub-singleuser
 
 # setup tunnel for notebook
-
-ssh -o "StrictHostKeyChecking no" -i ~/.ssh/tunnelbot_rsa -N -f -R $port:localhost:$port tunnelbot@jupyter.calit2.optiputer.net
+ssh -N -f -R $port:localhost:$port jupyter.ucsd.edu
 # setup tunnel for API
-# ssh -N -f -L 9081:localhost:9081 jupyter.calit2.optiputer.net
-
-    ''')
-    queue = "usplanck"
-    queue = "normal"
-    mem = 20
-    hours = 10
-    id = "jup"
-    serialpbs = serialpbs.substitute(dict(queue = queue, mem = mem, hours=hours, id=id, port=port, PATH="$PATH"))
-    serialpbs+='\n'
-    serialpbs+='cd %s' % "notebooks"
-    serialpbs+='\n'
-    serialpbs+=cmd
-    print('Submitting *****{\n%s\n}*****' % serialpbs)
-    # popen = subprocess.Popen('ssh carver.nersc.gov /usr/syscom/opt/torque/default_sl5carver/bin/qsub',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
-    comet_cert_name = "/home/{}/cilogon_comet.crt".format(name)
-    #with open(comet_cert_name, "w") as f:
-    #with os.fdopen(os.open(comet_cert_name, os.O_WRONLY | os.O_CREAT, 0o0600), 'w') as f:
-    #    for input_file in ["/home/{}/cilogon.crt".format(name), "/srv/remotespawner-jupyterhub/cred/oauth-privkey.pem"]:
-    #        with open(input_file) as input_f:
-    #            f.write(input_f.read())
-    popen = subprocess.Popen('gsissh comet.sdsc.edu sbatch',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE, env=dict(X509_USER_PROXY="/tmp/cert.{}".format(name)))
-    # popen = subprocess.Popen('ssh comet.sdsc.edu sbatch',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE,
-    # preexec_fn=set_user_setuid(name)
-    
-    out = popen.communicate(serialpbs.encode())[0].strip()
-
-    self.user.username = subprocess.check_output(["gsissh", "comet.sdsc.edu", "whoami"]).strip()
-
-    self.log.debug("Username: %s", str(self.user.username))
-    return out
-
-# def execute(channel, command):
-#     """Execute command and get remote PID"""
-# 
-#     command = command + '& pid=$!; echo PID=$pid'
-#     stdin, stdout, stderr = channel.exec_command(command)
-#     pid = int(stdout.readline().replace("PID=", ""))
-#     return pid, stdin, stdout, stderr
+#ssh -N -f -L 8081:localhost:8081 jupyter.ucsd.edu
+''')}
 
 class RemoteSpawner(Spawner):
     """A Spawner that just uses Popen to start local processes."""
 
-    INTERRUPT_TIMEOUT = Integer(1200, config=True, \
-        help="Seconds to wait for process to halt after SIGINT before proceeding to SIGTERM"
-                               )
-    TERM_TIMEOUT = Integer(1200, config=True, \
-        help="Seconds to wait for process to halt after SIGTERM before proceeding to SIGKILL"
-                          )
-    KILL_TIMEOUT = Integer(1200, config=True, \
-        help="Seconds to wait for process to halt after SIGKILL before giving up"
+    KILL_TIMEOUT = Integer(5, config=True, \
+        help="Seconds to wait for job to halt after canceling before giving up"
                           )
 
     server_url = Unicode("localhost", config=True, \
@@ -161,6 +110,10 @@ class RemoteSpawner(Spawner):
     def start(self):
         """Start the process"""
         self.user.server.port = random_port()
+
+        self.user.username = subprocess.check_output(["gsissh", "comet.sdsc.edu", "whoami"], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(self.user.name))).strip()
+
+        self.log.debug("Username: %s", str(self.user.username))
         cmd = []
         env = self.env.copy()
 
@@ -179,12 +132,29 @@ class RemoteSpawner(Spawner):
             cmd.insert(0, 'export %s="%s";' % (k, env[k]))
         #self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
         # self.pid = 0
-        run_jupyterhub_singleuser(' '.join(cmd), name=self.user.name, port=self.user.server.port)
-        # self.log.info("Process PID is %i", self.pid)
-        #self.user.server.ip = USE A COROUTINE TO GET IT WHEN JOB STARTS
-        #self.log.info("Setting up SSH tunnel")
-        #setup_ssh_tunnel(self.user.server.port, self.server_user, self.server_url)
-        #self.log.debug("Error %s", ''.join(stderr.readlines()))
+        serialpbs = job_template["comet"]
+        queue = "normal"
+        mem = 20
+        hours = 1
+        id = "jup"
+        with open(os.environ["TUNNELBOT_RSA_KEY_PATH"]) as rsa_file:
+            tunnelbot_rsa = rsa_file.read()
+
+        serialpbs = serialpbs.format(queue = queue, mem = mem, hours=hours, id=id, port=self.user.server.port, PATH="$PATH", user=self.user.username, tunnelbot_rsa=tunnelbot_rsa)
+        serialpbs+='\n'
+        serialpbs+='cd %s' % "notebooks"
+        serialpbs+='\n'
+        serialpbs+=' '.join(cmd)
+        print('Submitting *****{\n%s\n}*****' % serialpbs)
+        popen = subprocess.Popen('gsissh comet.sdsc.edu sbatch',shell = True, stdin = subprocess.PIPE, stdout = subprocess.PIPE, env=dict(X509_USER_PROXY="/tmp/cert.{}".format(self.user.name)))
+        
+        out = popen.communicate(serialpbs.encode())[0].strip()
+
+    def get_jobs(self, user):
+        jobs = subprocess.check_output(["gsissh", "comet.sdsc.edu", "squeue", "-u", user.username], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(user.name))).decode("utf-8").split("\n")
+        self.log.info("squeue results: %s", jobs)
+        running_jobs = [j for j in jobs if "SUjupy" in j and ("R" in j or "PD" in j)]
+        return running_jobs
 
     @gen.coroutine
     def poll(self):
@@ -192,13 +162,13 @@ class RemoteSpawner(Spawner):
 
         return None if it is, an exit status (0 if unknown) if it is not.
         """
-        jobs = subprocess.check_output(["gsissh", "comet.sdsc.edu", "squeue", "-u", self.user.username]).decode("utf-8").split("\n")
-        job = [j for j in jobs if "jupyter" in j and ("R" in j or "PD" in j)]
-        if len(job) > 1:
-            self.log.error("More than one jupyter job, picking the first")
-        elif len(job) == 0:
-            self.log.debug("No jupyterhub job found in running state")
-            return 0
+        if hasattr(self.user, "username"): # make sure the "start" coroutine has been executed
+            jobs = self.get_jobs(self.user)
+            if len(jobs) > 1:
+                self.log.error("More than one jupyter job")
+            elif len(jobs) == 0:
+                self.log.info("No jupyterhub job found in running state")
+                return 0
         return None
 
     @gen.coroutine
@@ -206,13 +176,6 @@ class RemoteSpawner(Spawner):
         """simple implementation of signal
 
         we can use it when we are using setuid (we are root)"""
-        #try:
-        #    os.kill(self.pid, sig)
-        #except OSError as e:
-        #    if e.errno == errno.ESRCH:
-        #        return False # process is gone
-        #    else:
-        #        raise
         return True # process exists
 
     @gen.coroutine
@@ -221,35 +184,21 @@ class RemoteSpawner(Spawner):
 
         if `now`, skip waiting for clean shutdown
         """
-        return
-        #if not now:
-        #    status = yield self.poll()
-        #    if status is not None:
-        #        return
-        #    self.log.debug("Interrupting %i", self.pid)
-        #    yield self._signal(signal.SIGINT)
-        #    yield self.wait_for_death(self.INTERRUPT_TIMEOUT)
+        # check if process already closed
+        status = yield self.poll()
+        if status is not None:
+            return
+        if hasattr(self.user, "username"): # make sure the "start" coroutine has been executed
+            jobs = self.get_jobs(self.user)
+            for job in jobs:
+                job_number = job.strip().split()[0]
+                subprocess.call(["gsissh", "comet.sdsc.edu", "scancel", "-u", self.user.username, job_number], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(self.user.name)))
+            yield self.wait_for_death(self.KILL_TIMEOUT)
 
-        ## clean shutdown failed, use TERM
-        #status = yield self.poll()
-        #if status is not None:
-        #    return
-        #self.log.debug("Terminating %i", self.pid)
-        #yield self._signal(signal.SIGTERM)
-        #yield self.wait_for_death(self.TERM_TIMEOUT)
-
-        ## TERM failed, use KILL
-        #status = yield self.poll()
-        #if status is not None:
-        #    return
-        #self.log.debug("Killing %i", self.pid)
-        #yield self._signal(signal.SIGKILL)
-        #yield self.wait_for_death(self.KILL_TIMEOUT)
-
-        #status = yield self.poll()
-        #if status is None:
-        #    # it all failed, zombie process
-        #    self.log.warn("Process %i never died", self.pid)
+        status = yield self.poll()
+        if status is None:
+            # it all failed, zombie process
+            self.log.warn("Job for user %s username %s never died", self.user.name, self.user.username)
 
 if __name__ == "__main__":
 
