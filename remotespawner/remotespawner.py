@@ -143,7 +143,7 @@ class RemoteSpawner(Spawner):
         out = popen.communicate(serialpbs.encode())[0].strip()
 
     def get_jobs(self, user):
-        jobs = subprocess.check_output(["gsissh", "comet.sdsc.edu", "'squeue -u $USER'"], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(user.name))).decode("utf-8").split("\n")
+        jobs = subprocess.check_output(["gsissh", "comet.sdsc.edu", "squeue -u $USER"], env=dict(X509_USER_PROXY="/tmp/cert.{}".format(user.name))).decode("utf-8").split("\n")
         self.log.info("squeue results: %s", jobs)
         running_jobs = [j for j in jobs if "SUjupy" in j and ("R" in j or "PD" in j)]
         return running_jobs
