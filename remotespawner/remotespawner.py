@@ -20,11 +20,11 @@ from jupyterhub.spawner import set_user_setuid
 job_template = {"comet":('''#!/bin/bash
 #SBATCH --job-name="SUjupyter"
 #SBATCH --output="jupyterhub.%j.%N.out"
-#SBATCH --partition=compute
+#SBATCH --partition={queue}
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=24
 #SBATCH --export=ALL
-#SBATCH -t {hours}:00:00
+#SBATCH -t {duration}:00
+{otheroption}
 
 module load python scipy
 
@@ -125,14 +125,19 @@ class RemoteSpawner(Spawner):
         #self.pid, stdin, stdout, stderr = execute(self.channel, ' '.join(cmd))
         # self.pid = 0
         serialpbs = job_template["comet"]
-        queue = "normal"
+        queue = self.user_options.get("queue", "compute")
+        duration = self.user_options.get("duration", "compute")
+        otheroption = []
+        if queue == "gpu":
+            otheroption.append("#SBATCH --gres=gpu:4")
+        if queue == "gpu-shared":
+            otheroption.append("#SBATCH --gres=gpu:{}".format(self.user_options.get("gpus", 1)))
         mem = 20
-        hours = 1
         id = "jup"
         with open(os.environ["TUNNELBOT_RSA_KEY_PATH"]) as rsa_file:
             tunnelbot_rsa = rsa_file.read()
 
-        serialpbs = serialpbs.format(queue = queue, mem = mem, hours=hours, id=id, port=self.user.server.port, PATH="$PATH", tunnelbot_rsa=tunnelbot_rsa)
+        serialpbs = serialpbs.format(otheroption="\n".join(otheroption), queue = queue, mem = mem, duration=duration, id=id, port=self.user.server.port, PATH="$PATH", tunnelbot_rsa=tunnelbot_rsa)
         serialpbs+='\n'
         serialpbs+='cd %s' % "notebooks"
         serialpbs+='\n'
