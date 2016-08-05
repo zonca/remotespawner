@@ -1,3 +1,7 @@
+# Development stopped
+
+Please use <https://github.com/jupyterhub/batchspawner> for spawning Jupyter Notebooks via SLURM/Torque et similia.
+
 # remotespawner
 Remote Spawner class for JupyterHub to spawn IPython notebooks and a remote server and tunnel the port via SSH
 
